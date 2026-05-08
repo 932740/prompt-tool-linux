@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AI 提示词工具箱</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+body{font-family:'Noto Sans SC',sans-serif;background:#0f172a;color:#e2e8f0;-webkit-tap-highlight-color:transparent}
+.tab-active{border-bottom:2px solid #38bdf8;color:#38bdf8}
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px}
+.btn-primary{background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff;padding:8px 20px;border-radius:8px;font-weight:500;transition:.2s;cursor:pointer;border:none}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(14,165,233,.35)}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.btn-secondary{background:#334155;color:#e2e8f0;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;transition:.2s}
+.btn-secondary:hover{background:#475569}
+.btn-danger{background:#334155;color:#f87171;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;transition:.2s}
+.btn-danger:hover{background:#475569;color:#ef4444}
+.textarea{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;color:#e2e8f0;resize:vertical;outline:none;transition:.2s;width:100%}
+.textarea:focus{border-color:#38bdf8;box-shadow:0 0 0 3px rgba(56,189,248,.1)}
+.select{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;outline:none}
+.prompt-item{padding:16px;border:1px solid #334155;border-radius:10px;margin-bottom:12px;background:#1e293b;transition:.2s}
+.prompt-item:hover{border-color:#475569}
+.copy-hint{position:fixed;bottom:24px;right:24px;background:#10b981;color:#fff;padding:10px 20px;border-radius:8px;opacity:0;transition:.3s;pointer-events:none;z-index:50}
+.copy-hint.show{opacity:1}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:60;opacity:0;pointer-events:none;transition:.2s}
+.modal-overlay.open{opacity:1;pointer-events:auto}
+.modal-box{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;max-width:420px;width:90%;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.modal-title{font-weight:700;margin-bottom:12px;font-size:16px}
+.modal-body{font-size:14px;color:#cbd5e1;margin-bottom:16px;line-height:1.6}
+.modal-body pre{background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto;font-size:13px;color:#e2e8f0}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:#0f172a}
+::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#475569}
+</style>
+</head>
+<body class="min-h-screen">
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <header class="flex items-center justify-between mb-8">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg">AI</div>
+      <div>
+        <h1 class="text-xl font-bold">AI 提示词工具箱</h1>
+        <p class="text-sm text-slate-400">生成 · 优化 · 管理你的提示词</p>
+      </div>
+    </div>
+    <div class="text-sm text-slate-500" id="saved-count">已保存 0 条</div>
+  </header>
+
+  <nav class="flex gap-6 border-b border-slate-700 mb-6 text-sm font-medium overflow-x-auto">
+    <button onclick="switchTab('generate')" id="tab-generate" class="pb-3 tab-active shrink-0">提示词生成器</button>
+    <button onclick="switchTab('optimize')" id="tab-optimize" class="pb-3 text-slate-400 hover:text-slate-200 shrink-0">提示词优化器</button>
+    <button onclick="switchTab('library')" id="tab-library" class="pb-3 text-slate-400 hover:text-slate-200 shrink-0">提示词管理库</button>
+  </nav>
+
+  <!-- Generate -->
+  <section id="panel-generate">
+    <div class="grid md:grid-cols-3 gap-4 mb-4">
+      <div class="md:col-span-2">
+        <label class="block text-sm text-slate-400 mb-2">你的需求描述</label>
+        <textarea id="gen-desc" class="textarea" rows="4" placeholder="例如：帮我写一段关于新款智能手表的小红书文案"></textarea>
+      </div>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm text-slate-400 mb-2">场景类型</label>
+          <select id="gen-scene" class="select w-full">
+            <option value="image">图片生成</option>
+            <option value="copywriting">文案创作</option>
+            <option value="coding">编程开发</option>
+            <option value="analysis">分析推理</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-slate-400 mb-2">输出风格</label>
+          <select id="gen-style" class="select w-full">
+            <option value="professional">专业严谨</option>
+            <option value="detailed">详细全面</option>
+            <option value="concise">简洁精炼</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-slate-400 mb-2">输出语言</label>
+          <select id="gen-lang" class="select w-full">
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-3 mb-6">
+      <button onclick="generatePrompt()" id="btn-gen" class="btn-primary">生成提示词</button>
+      <button onclick="clearGenerate()" class="btn-secondary">清空</button>
+    </div>
+    <div id="gen-result-box" class="hidden">
+      <label class="block text-sm text-slate-400 mb-2">生成的提示词</label>
+      <textarea id="gen-result" class="textarea" rows="10" readonly></textarea>
+      <div class="flex gap-3 mt-3 flex-wrap">
+        <button onclick="copyText('gen-result')" class="btn-secondary">复制</button>
+        <button onclick="saveCurrentPrompt('gen-result')" class="btn-secondary">保存到管理库</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Optimize -->
+  <section id="panel-optimize" class="hidden">
+    <div class="mb-4">
+      <label class="block text-sm text-slate-400 mb-2">输入你的原始提示词</label>
+      <textarea id="opt-input" class="textarea" rows="6" placeholder="粘贴你现有的提示词，例如：写一篇文章"></textarea>
+    </div>
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-sm text-slate-400 mb-2">优化目标</label>
+        <select id="opt-goal" class="select w-full">
+          <option value="clarity">提高清晰度</option>
+          <option value="structure">增强结构化</option>
+          <option value="detail">增加细节约束</option>
+          <option value="concise">精简表达</option>
+          <option value="role">强化角色设定</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-2">场景</label>
+        <select id="opt-scene" class="select w-full">
+          <option value="general">通用</option>
+          <option value="image">图片生成</option>
+          <option value="copywriting">文案创作</option>
+          <option value="coding">编程开发</option>
+          <option value="analysis">分析推理</option>
+        </select>
+      </div>
+    </div>
+    <div class="flex gap-3 mb-6">
+      <button onclick="optimizePrompt()" id="btn-opt" class="btn-primary">优化提示词</button>
+      <button onclick="clearOptimize()" class="btn-secondary">清空</button>
+    </div>
+    <div id="opt-result-box" class="hidden">
+      <div class="card p-4 mb-4">
+        <h3 class="text-sm font-bold text-sky-400 mb-2">优化建议</h3>
+        <ul id="opt-suggestions" class="text-sm text-slate-300 space-y-1 list-disc list-inside"></ul>
+      </div>
+      <label class="block text-sm text-slate-400 mb-2">优化后的提示词</label>
+      <textarea id="opt-result" class="textarea" rows="10" readonly></textarea>
+      <div class="flex gap-3 mt-3 flex-wrap">
+        <button onclick="copyText('opt-result')" class="btn-secondary">复制</button>
+        <button onclick="saveCurrentPrompt('opt-result')" class="btn-secondary">保存到管理库</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Library -->
+  <section id="panel-library" class="hidden">
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+      <input id="lib-search" type="text" class="textarea flex-1 min-w-[200px]" placeholder="搜索提示词..." oninput="renderLibrary()">
+      <select id="lib-filter" class="select" onchange="renderLibrary()">
+        <option value="">全部分类</option>
+        <option value="image">图片生成</option>
+        <option value="copywriting">文案创作</option>
+        <option value="coding">编程开发</option>
+        <option value="analysis">分析推理</option>
+        <option value="general">通用</option>
+      </select>
+      <button onclick="importPrompts()" class="btn-secondary">导入 JSON</button>
+      <button onclick="exportPrompts()" class="btn-secondary">导出 JSON</button>
+      <button onclick="confirmClear()" class="btn-danger">清空全部</button>
+    </div>
+    <div id="lib-list"></div>
+  </section>
+</div>
+
+<div id="copy-hint" class="copy-hint">已复制到剪贴板</div>
+
+<!-- Custom Confirm Modal -->
+<div id="confirm-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title" id="confirm-title">确认</div>
+    <div class="modal-body" id="confirm-body">确定执行此操作？</div>
+    <div class="modal-actions">
+      <button onclick="closeConfirm(false)" class="btn-secondary">取消</button>
+      <button onclick="closeConfirm(true)" class="btn-danger" id="confirm-ok-btn">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manual Copy Modal -->
+<div id="manual-copy-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-title">自动复制失败</div>
+    <div class="modal-body">
+      <div class="mb-2">请手动选中文本复制：</div>
+      <pre id="manual-copy-text"></pre>
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeManualCopy()" class="btn-secondary">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let currentTab = 'generate';
+let confirmResolve = null;
+
+function switchTab(tab) {
+  currentTab = tab;
+  ['generate','optimize','library'].forEach(t => {
+    document.getElementById('panel-'+t).classList.add('hidden');
+    const btn = document.getElementById('tab-'+t);
+    btn.classList.remove('tab-active');
+    btn.classList.add('text-slate-400');
+  });
+  document.getElementById('panel-'+tab).classList.remove('hidden');
+  const btn = document.getElementById('tab-'+tab);
+  btn.classList.add('tab-active');
+  btn.classList.remove('text-slate-400');
+  if(tab === 'library') renderLibrary();
+}
+
+function showHint(msg) {
+  const el = document.getElementById('copy-hint');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+/* 飞书兼容复制 */
+function copyText(id) {
+  const el = document.getElementById(id);
+  const text = el.value;
+  if(!text) return;
+
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => showHint('已复制到剪贴板')).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+
+  if(ok) {
+    showHint('已复制到剪贴板');
+  } else {
+    document.getElementById('manual-copy-text').textContent = text;
+    document.getElementById('manual-copy-modal').classList.add('open');
+  }
+}
+
+function closeManualCopy() {
+  document.getElementById('manual-copy-modal').classList.remove('open');
+}
+
+/* 自定义 confirm */
+function openConfirm(title, body, okText) {
+  return new Promise(resolve => {
+    confirmResolve = resolve;
+    document.getElementById('confirm-title').textContent = title || '确认';
+    document.getElementById('confirm-body').textContent = body || '确定执行此操作？';
+    document.getElementById('confirm-ok-btn').textContent = okText || '确定';
+    document.getElementById('confirm-modal').classList.add('open');
+  });
+}
+function closeConfirm(result) {
+  document.getElementById('confirm-modal').classList.remove('open');
+  if(confirmResolve) { confirmResolve(result); confirmResolve = null; }
+}
+
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  btn.disabled = loading;
+  btn.textContent = loading ? '处理中...' : (btnId === 'btn-gen' ? '生成提示词' : '优化提示词');
+}
+
+async function post(path, body) {
+  const r = await fetch(API + path, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  if(!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function get(path) {
+  const r = await fetch(API + path);
+  if(!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function generatePrompt() {
+  const desc = document.getElementById('gen-desc').value.trim();
+  if(!desc) { showHint('请先输入需求描述'); return; }
+  setLoading('btn-gen', true);
+  try {
+    const res = await post('/api/generate', {
+      desc,
+      scene: document.getElementById('gen-scene').value,
+      style: document.getElementById('gen-style').value,
+      lang: document.getElementById('gen-lang').value,
+    });
+    document.getElementById('gen-result').value = res.result;
+    document.getElementById('gen-result-box').classList.remove('hidden');
+  } catch(e) { showHint('生成失败：' + e.message); }
+  setLoading('btn-gen', false);
+}
+
+async function optimizePrompt() {
+  const input = document.getElementById('opt-input').value.trim();
+  if(!input) { showHint('请先输入提示词'); return; }
+  setLoading('btn-opt', true);
+  try {
+    const res = await post('/api/optimize', {
+      input,
+      goal: document.getElementById('opt-goal').value,
+      scene: document.getElementById('opt-scene').value,
+      lang: document.getElementById('gen-lang').value,
+    });
+    document.getElementById('opt-suggestions').innerHTML = res.suggestions.map(s => '<li>'+escapeHtml(s)+'</li>').join('');
+    document.getElementById('opt-result').value = res.result;
+    document.getElementById('opt-result-box').classList.remove('hidden');
+  } catch(e) { showHint('优化失败：' + e.message); }
+  setLoading('btn-opt', false);
+}
+
+async function saveCurrentPrompt(id) {
+  const content = document.getElementById(id).value.trim();
+  if(!content) return;
+  const title = content.split('\n')[0].slice(0, 40) || '未命名提示词';
+  try {
+    await post('/api/prompts', {title, content, scene: 'general'});
+    showHint('已保存到管理库');
+    updateCount();
+  } catch(e) { showHint('保存失败：' + e.message); }
+}
+
+function clearGenerate() {
+  document.getElementById('gen-desc').value = '';
+  document.getElementById('gen-result-box').classList.add('hidden');
+}
+function clearOptimize() {
+  document.getElementById('opt-input').value = '';
+  document.getElementById('opt-result-box').classList.add('hidden');
+}
+
+/* ========== 管理库 ========== */
+async function renderLibrary() {
+  const list = document.getElementById('lib-list');
+  const q = document.getElementById('lib-search').value.trim();
+  const f = document.getElementById('lib-filter').value;
+  let url = '/api/prompts?';
+  if(q) url += 'q=' + encodeURIComponent(q) + '&';
+  if(f) url += 'scene=' + encodeURIComponent(f) + '&';
+
+  list.innerHTML = '<div class="text-center text-slate-500 py-12">加载中...</div>';
+  try {
+    const res = await get(url);
+    const data = res.prompts || [];
+    if(data.length === 0) {
+      list.innerHTML = '<div class="text-center text-slate-500 py-12">暂无提示词，去生成器或优化器创建并保存</div>';
+      return;
+    }
+    list.innerHTML = data.map(p => `
+      <div class="prompt-item" data-id="${p.id}">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div class="font-medium text-sky-300 text-sm">${escapeHtml(p.title)}</div>
+          <div class="flex gap-2 text-xs shrink-0">
+            <span class="text-slate-500">${p.created || ''}</span>
+            <button onclick="copyLibPrompt(${p.id})" class="text-sky-400 hover:text-sky-300">复制</button>
+            <button onclick="delLibPrompt(${p.id})" class="text-red-400 hover:text-red-300">删除</button>
+          </div>
+        </div>
+        <div class="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">${escapeHtml(p.content)}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    list.innerHTML = '<div class="text-center text-red-400 py-12">加载失败：' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function escapeHtml(t) {
+  return (t || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+async function copyLibPrompt(id) {
+  try {
+    const res = await get('/api/prompts');
+    const p = (res.prompts || []).find(x => x.id === id);
+    if(p) copyRawText(p.content);
+  } catch(e) {}
+}
+
+function copyRawText(text) {
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => showHint('已复制')).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+async function delLibPrompt(id) {
+  const ok = await openConfirm('删除提示词', '确定删除这条提示词？此操作不可恢复。', '删除');
+  if(!ok) return;
+  try {
+    await fetch(API + '/api/prompts/' + id, {method:'DELETE'});
+    renderLibrary();
+    updateCount();
+  } catch(e) { showHint('删除失败：' + e.message); }
+}
+
+async function updateCount() {
+  try {
+    const res = await get('/api/prompts');
+    document.getElementById('saved-count').textContent = '已保存 ' + (res.total || 0) + ' 条';
+  } catch(e) {}
+}
+
+function exportPrompts() {
+  const a = document.createElement('a');
+  a.href = API + '/api/prompts/export';
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showHint('正在导出...');
+}
+
+function importPrompts() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.json';
+  inp.onchange = async e => {
+    const f = e.target.files[0];
+    if(!f) return;
+    const text = await f.text();
+    try {
+      const payload = JSON.parse(text);
+      if(!Array.isArray(payload)) throw new Error('格式错误，需要是数组');
+      const r = await fetch(API + '/api/prompts/import', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if(!r.ok) throw new Error(await r.text());
+      const res = await r.json();
+      showHint('成功导入 ' + res.imported + ' 条');
+      renderLibrary();
+      updateCount();
+    } catch(err) { showHint('导入失败：' + err.message); }
+  };
+  inp.click();
+}
+
+async function confirmClear() {
+  const ok = await openConfirm('清空管理库', '确定清空所有保存的提示词？此操作不可恢复。', '清空');
+  if(!ok) return;
+  try {
+    const res = await get('/api/prompts');
+    for(const p of (res.prompts || [])) {
+      await fetch(API + '/api/prompts/' + p.id, {method:'DELETE'});
+    }
+    renderLibrary();
+    updateCount();
+    showHint('已清空');
+  } catch(e) { showHint('清空失败：' + e.message); }
+}
+
+updateCount();
+</script>
+</body>
+</html>
